@@ -50,7 +50,7 @@ func (p *Prepare) Ready() (bool, error) {
 		}
 	}
 
-	patched, err := p.canalIsPatched()
+	patched, err := p.awsVpcCNIisPatched()
 	if err != nil || !patched {
 		return false, err
 	}
@@ -88,8 +88,8 @@ func (p *Prepare) Run(dryrun bool) error {
 			delete(n.Labels, p.config.Labels.Cilium)
 			delete(n.Labels, p.config.Labels.CNIPriorityCilium)
 
-			n.Labels[p.config.Labels.CanalCilium] = p.config.Labels.Value
-			n.Labels[p.config.Labels.CNIPriorityCanal] = p.config.Labels.Value
+			n.Labels[p.config.Labels.AwsVpcCniCilium] = p.config.Labels.Value
+			n.Labels[p.config.Labels.CNIPriorityAwsVPC] = p.config.Labels.Value
 
 			_, err := p.client.CoreV1().Nodes().Update(p.ctx, n.DeepCopy(), metav1.UpdateOptions{})
 			if err != nil {
@@ -98,17 +98,17 @@ func (p *Prepare) Run(dryrun bool) error {
 		}
 	}
 
-	patched, err := p.canalIsPatched()
+	patched, err := p.awsVpcCNIisPatched()
 	if err != nil {
 		return err
 	}
 
 	if !patched {
-		p.log.Infof("patching canal DaemonSet with node selector %s=%s",
-			p.config.Labels.CanalCilium, p.config.Labels.Value)
+		p.log.Infof("patching aws-node DaemonSet with node selector %s=%s",
+			p.config.Labels.AwsVpcCniCilium, p.config.Labels.Value)
 
 		if !dryrun {
-			if err := p.patchCanal(); err != nil {
+			if err := p.patchAwsVPC(); err != nil {
 				return err
 			}
 		}
@@ -120,19 +120,14 @@ func (p *Prepare) Run(dryrun bool) error {
 	}
 
 	if !requiredResources {
-		p.log.Infof("creating cilium resources")
-		if !dryrun {
-			if err := p.factory.CreateDaemonSet(p.config.Paths.Cilium, "kube-system", "cilium"); err != nil {
-				return err
-			}
-		}
+		// TODO: Make it deployable with helm
+		//p.log.Infof("creating cilium resources")
+		//if !dryrun {
+		//	if err := p.factory.CreateDaemonSet(p.config.Paths.Cilium, "kube-system", "cilium"); err != nil {
+		//		return err
+		//	}
+		//}
 
-		p.log.Infof("creating multus resources")
-		if !dryrun {
-			if err := p.factory.CreateDaemonSet(p.config.Paths.Multus, "kube-system", "kube-multus-canal"); err != nil {
-				return err
-			}
-		}
 	}
 
 	if !dryrun {
@@ -148,8 +143,8 @@ func (p *Prepare) Run(dryrun bool) error {
 	return nil
 }
 
-func (p *Prepare) patchCanal() error {
-	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "canal", metav1.GetOptions{})
+func (p *Prepare) patchAwsVPC() error {
+	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "aws-node", metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -157,7 +152,7 @@ func (p *Prepare) patchCanal() error {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		ds.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CanalCilium] = p.config.Labels.Value
+	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium] = p.config.Labels.Value
 
 	_, err = p.client.AppsV1().DaemonSets("kube-system").Update(p.ctx, ds, metav1.UpdateOptions{})
 	if err != nil {
@@ -172,10 +167,10 @@ func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 		return false
 	}
 
-	_, cclOK := labels[p.config.Labels.CanalCilium]
+	_, cclOK := labels[p.config.Labels.AwsVpcCniCilium]
 	_, clOK := labels[p.config.Labels.Cilium]
 
-	_, prioCan := labels[p.config.Labels.CNIPriorityCanal]
+	_, prioCan := labels[p.config.Labels.CNIPriorityAwsVPC]
 	_, prioCil := labels[p.config.Labels.CNIPriorityCilium]
 	_, migrated := labels[p.config.Labels.Migrated]
 
@@ -204,8 +199,8 @@ func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 	return true
 }
 
-func (p *Prepare) canalIsPatched() (bool, error) {
-	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "canal", metav1.GetOptions{})
+func (p *Prepare) awsVpcCNIisPatched() (bool, error) {
+	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "aws-node", metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -213,7 +208,7 @@ func (p *Prepare) canalIsPatched() (bool, error) {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		return false, nil
 	}
-	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CanalCilium]; !ok || v != p.config.Labels.Value {
+	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium]; !ok || v != p.config.Labels.Value {
 		return false, nil
 	}
 

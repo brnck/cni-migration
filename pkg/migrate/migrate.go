@@ -219,7 +219,7 @@ func (m *Migrate) addCiliumTaint(nodeName string) error {
 	}
 
 	// Change label of node
-	delete(node.Labels, m.config.Labels.CanalCilium)
+	delete(node.Labels, m.config.Labels.AwsVpcCniCilium)
 	node.Labels[m.config.Labels.Cilium] = m.config.Labels.Value
 
 	node, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})
@@ -238,7 +238,7 @@ func (m *Migrate) setNodeMigratedLabel(nodeName string) error {
 
 	// Set migrated label
 	delete(node.Labels, m.config.Labels.CNIPriorityCilium)
-	delete(node.Labels, m.config.Labels.CanalCilium)
+	delete(node.Labels, m.config.Labels.AwsVpcCniCilium)
 	node.Labels[m.config.Labels.Migrated] = m.config.Labels.Value
 
 	_, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})

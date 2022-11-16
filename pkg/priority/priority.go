@@ -103,7 +103,7 @@ func (p *Priority) node(dryrun bool, name string) error {
 		if node.Labels == nil {
 			node.Labels = make(map[string]string)
 		}
-		delete(node.Labels, p.config.Labels.CNIPriorityCanal)
+		delete(node.Labels, p.config.Labels.CNIPriorityAwsVPC)
 		node.Labels[p.config.Labels.CNIPriorityCilium] = p.config.Labels.Value
 
 		_, err = p.client.CoreV1().Nodes().Update(p.ctx, node, metav1.UpdateOptions{})

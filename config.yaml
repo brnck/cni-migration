@@ -1,7 +1,7 @@
 # Node labels to use to check the status of each stage
 labels:
-  canal-cilium: node-role.kubernetes.io/canal-cilium
-  cni-priority-canal: node-role.kubernetes.io/priority-canal
+  aws-vpc-cilium: node-role.kubernetes.io/aws-vpc
+  cni-priority-aws-vpc: node-role.kubernetes.io/priority-aws-vpc
   cni-priority-cilium: node-role.kubernetes.io/priority-cilium
   rolled: node-role.kubernetes.io/rolled
   cilium: node-role.kubernetes.io/cilium
@@ -10,8 +10,6 @@ labels:
 
 # File paths of resources for the migration
 paths:
-  cilium: ./resources/cilium.yaml
-  multus: ./resources/multus.yaml
   knet-stress: ./resources/knet-stress.yaml
 
 # Resources required before any migration steps.
@@ -28,13 +26,8 @@ preflightResources:
 watchedResources:
   daemonsets:
     kube-system:
-    - canal
+    - aws-node
     - cilium
-    - cilium-migrated
-    - kube-multus-canal
-    - kube-multus-cilium
-    - kube-controller-manager
-    - kube-scheduler
     knet-stress:
     - knet-stress
     - knet-stress-2
@@ -45,10 +38,8 @@ watchedResources:
 cleanUpResources:
   daemonsets:
     kube-system:
-    - canal
+    - aws-node
     - cilium
-    - kube-multus-canal
-    - kube-multus-cilium
     knet-stress:
     - knet-stress
     - knet-stress-2

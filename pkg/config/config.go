@@ -11,9 +11,9 @@ import (
 )
 
 type Labels struct {
-	CanalCilium       string `yaml:"canal-cilium"`
+	AwsVpcCniCilium   string `yaml:"aws-vpc-cilium"`
 	Rolled            string `yaml:"rolled"`
-	CNIPriorityCanal  string `yaml:"cni-priority-canal"`
+	CNIPriorityAwsVPC string `yaml:"cni-priority-aws-vpc"`
 	CNIPriorityCilium string `yaml:"cni-priority-cilium"`
 
 	Cilium   string `yaml:"cilium"`
