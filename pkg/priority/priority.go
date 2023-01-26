@@ -2,18 +2,14 @@ package priority
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/jetstack/cni-migration/pkg"
-	"github.com/jetstack/cni-migration/pkg/config"
-	"github.com/jetstack/cni-migration/pkg/util"
-)
-
-const (
-	ContextNodesKey = "cni-migration-priority-nodes"
+	"github.com/brnck/cni-migration/pkg"
+	"github.com/brnck/cni-migration/pkg/config"
+	"github.com/brnck/cni-migration/pkg/util"
 )
 
 var _ pkg.Step = &Priority{}
@@ -39,17 +35,16 @@ func New(ctx context.Context, config *config.Config) pkg.Step {
 }
 
 // Ready ensures that
-// - All nodes have the revered cni-priority-cilium label
+// - AWS VPC CNI has node selector that schedules pod only on AWS VPC nodes
 func (p *Priority) Ready() (bool, error) {
-	nodes, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
-	if err != nil {
+	patched, err := p.awsVpcCNIisPatched()
+	if err != nil || !patched {
 		return false, err
 	}
 
-	for _, n := range nodes.Items {
-		if !p.hasRequiredLabel(n.Labels) {
-			return false, nil
-		}
+	requiredResources, err := p.factory.Has(p.config.WatchedResources)
+	if err != nil || !requiredResources {
+		return false, err
 	}
 
 	p.log.Info("step 3 ready")
@@ -57,6 +52,8 @@ func (p *Priority) Ready() (bool, error) {
 	return true, nil
 }
 
+// Run ensures that
+// - AWS VPC CNI has node selector that schedules pod only on AWS VPC nodes
 func (p *Priority) Run(dryrun bool) error {
 	if !dryrun {
 		if err := p.factory.CheckKnetStress(); err != nil {
@@ -64,73 +61,71 @@ func (p *Priority) Run(dryrun bool) error {
 		}
 	}
 
-	nodes, flagEnabled, err := util.NodesFromContext(p.client, p.ctx, ContextNodesKey)
+	patched, err := p.awsVpcCNIisPatched()
 	if err != nil {
 		return err
 	}
 
-	if !flagEnabled {
-		p.log.Info("reversing priority of CNI to cilium on all nodes...")
+	if !patched {
+		p.log.Infof("patching aws-node DaemonSet with node selector %s=%s",
+			p.config.Labels.AwsVpcCniCilium, p.config.Labels.Value)
 
-		nodesList, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-
-		nodes = nodesList.Items
-	}
-
-	for _, node := range nodes {
-		if !p.hasRequiredLabel(node.Labels) {
-			p.log.Infof("changing CNI priority to Cilium on node %s", node.Name)
-			if err := p.node(dryrun, node.Name); err != nil {
+		if !dryrun {
+			if err := p.patchAwsVPC(); err != nil {
 				return err
 			}
 		}
 	}
 
+	if !dryrun {
+		if err := p.factory.WaitAllReady(p.config.WatchedResources); err != nil {
+			return err
+		}
+
+		if err := p.factory.CheckKnetStress(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (p *Priority) node(dryrun bool, name string) error {
-	node, err := p.client.CoreV1().Nodes().Get(p.ctx, name, metav1.GetOptions{})
+func (p *Priority) patchAwsVPC() error {
+	ds, err := p.client.AppsV1().
+		DaemonSets(p.config.AwsVpcCni.Namespace).
+		Get(p.ctx, p.config.AwsVpcCni.DaemonsetName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
 
-	p.log.Infof("adding Cilium primary CNI label to node %s", name)
-	if !dryrun {
-		if node.Labels == nil {
-			node.Labels = make(map[string]string)
-		}
-		delete(node.Labels, p.config.Labels.CNIPriorityAwsVPC)
-		node.Labels[p.config.Labels.CNIPriorityCilium] = p.config.Labels.Value
-
-		_, err = p.client.CoreV1().Nodes().Update(p.ctx, node, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
-
+	if ds.Spec.Template.Spec.NodeSelector == nil {
+		ds.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
+	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium] = p.config.Labels.Value
 
-	if err := p.factory.RollNode(dryrun, name, p.config.WatchedResources); err != nil {
+	_, err = p.client.AppsV1().DaemonSets(p.config.AwsVpcCni.Namespace).Update(p.ctx, ds, metav1.UpdateOptions{})
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *Priority) hasRequiredLabel(labels map[string]string) bool {
-	if labels == nil {
-		return false
+func (p *Priority) awsVpcCNIisPatched() (bool, error) {
+	ds, err := p.client.AppsV1().
+		DaemonSets(p.config.AwsVpcCni.Namespace).
+		Get(p.ctx, p.config.AwsVpcCni.DaemonsetName, metav1.GetOptions{})
+
+	if err != nil {
+		return false, err
 	}
 
-	_, okPrio := labels[p.config.Labels.CNIPriorityCilium]
-	_, okMigrated := labels[p.config.Labels.Migrated]
-
-	if !okPrio && !okMigrated {
-		return false
+	if ds.Spec.Template.Spec.NodeSelector == nil {
+		return false, nil
+	}
+	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium]; !ok || v != p.config.Labels.Value {
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }

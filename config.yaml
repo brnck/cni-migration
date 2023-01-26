@@ -1,16 +1,29 @@
 # Node labels to use to check the status of each stage
 labels:
-  aws-vpc-cilium: node-role.kubernetes.io/aws-vpc
-  cni-priority-aws-vpc: node-role.kubernetes.io/priority-aws-vpc
-  cni-priority-cilium: node-role.kubernetes.io/priority-cilium
-  rolled: node-role.kubernetes.io/rolled
+  aws-vpc-cni: node-role.kubernetes.io/aws-vpc
   cilium: node-role.kubernetes.io/cilium
-  migrated: node-role.kubernetes.io/migrated
   value: "true" # used as the value to each label key
 
 # File paths of resources for the migration
 paths:
   knet-stress: ./resources/knet-stress.yaml
+  cilium-pre-migration: ./resources/cilium-pre-migration.yaml
+  cilium-post-migration: ./resources/cilium-post-migration.yaml
+
+awsVpcCni:
+  namespace: kube-system
+  daemonsetName: aws-node
+
+clusterAutoscaler:
+  namespace: kube-system
+  deploymentName: cluster-autoscaler
+
+cilium:
+  release-name: cilium
+  chart-name: cilium/cilium
+  repo-path: "https://helm.cilium.io/"
+  version: 1.12.5
+  namespace: kube-system
 
 # Resources required before any migration steps.
 preflightResources:
@@ -27,7 +40,6 @@ watchedResources:
   daemonsets:
     kube-system:
     - aws-node
-    - cilium
     knet-stress:
     - knet-stress
     - knet-stress-2
@@ -38,8 +50,6 @@ watchedResources:
 cleanUpResources:
   daemonsets:
     kube-system:
-    - aws-node
-    - cilium
     knet-stress:
     - knet-stress
     - knet-stress-2

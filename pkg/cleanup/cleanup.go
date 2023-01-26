@@ -7,9 +7,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/jetstack/cni-migration/pkg"
-	"github.com/jetstack/cni-migration/pkg/config"
-	"github.com/jetstack/cni-migration/pkg/util"
+	"github.com/brnck/cni-migration/pkg"
+	"github.com/brnck/cni-migration/pkg/config"
+	"github.com/brnck/cni-migration/pkg/util"
 )
 
 var _ pkg.Step = &CleanUp{}
@@ -42,7 +42,7 @@ func (c *CleanUp) Ready() (bool, error) {
 		return !cleanUpResources, err
 	}
 
-	ds, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, "cilium-migrated", metav1.GetOptions{})
+	ds, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, "cilium", metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -59,39 +59,9 @@ func (c *CleanUp) Ready() (bool, error) {
 func (c *CleanUp) Run(dryrun bool) error {
 	c.log.Info("cleaning up...")
 
-	c.log.Info("removing node selector from cilium-migrated")
+	c.log.Info("deleting aws-node DaemonSet")
 	if !dryrun {
-		ds, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, "cilium-migrated", metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-
-		delete(ds.Spec.Template.Spec.NodeSelector, c.config.Labels.Cilium)
-
-		_, err = c.client.AppsV1().DaemonSets("kube-system").Update(c.ctx, ds, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
-	}
-
-	c.log.Infof("deleting multus: %s", c.config.Paths.Multus)
-	if !dryrun {
-		if err := c.factory.DeleteResource(c.config.Paths.Multus, "kube-system"); err != nil {
-			return err
-		}
-	}
-
-	c.log.Info("deleting canal DaemonSet")
-	if !dryrun {
-		err := c.client.AppsV1().DaemonSets("kube-system").Delete(c.ctx, "canal", metav1.DeleteOptions{})
-		if err != nil {
-			return err
-		}
-	}
-
-	c.log.Info("deleting cilium DaemonSet")
-	if !dryrun {
-		err := c.client.AppsV1().DaemonSets("kube-system").Delete(c.ctx, "cilium", metav1.DeleteOptions{})
+		err := c.client.AppsV1().DaemonSets("kube-system").Delete(c.ctx, "aws-node", metav1.DeleteOptions{})
 		if err != nil {
 			return err
 		}
