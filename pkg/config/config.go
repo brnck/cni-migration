@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	helmclient "github.com/mittwald/go-helm-client"
 	"io/ioutil"
 
 	"github.com/sirupsen/logrus"
@@ -11,21 +12,34 @@ import (
 )
 
 type Labels struct {
-	CanalCilium       string `yaml:"canal-cilium"`
-	Rolled            string `yaml:"rolled"`
-	CNIPriorityCanal  string `yaml:"cni-priority-canal"`
-	CNIPriorityCilium string `yaml:"cni-priority-cilium"`
-
-	Cilium   string `yaml:"cilium"`
-	Migrated string `yaml:"migrated"`
+	AwsVpcCniCilium string `yaml:"aws-vpc-cni"`
+	Cilium          string `yaml:"cilium"`
 
 	Value string `yaml:"value"`
 }
 
 type Paths struct {
-	KnetStress string `yaml:"knet-stress"`
-	Cilium     string `yaml:"cilium"`
-	Multus     string `yaml:"multus"`
+	KnetStress          string `yaml:"knet-stress"`
+	CiliumPreMigration  string `yaml:"cilium-pre-migration"`
+	CiliumPostMigration string `yaml:"cilium-post-migration"`
+}
+
+type AwsVpcCni struct {
+	Namespace     string `yaml:"namespace"`
+	DaemonsetName string `yaml:"daemonsetName"`
+}
+
+type ClusterAutoscaler struct {
+	Namespace      string `yaml:"namespace"`
+	DeploymentName string `yaml:"deploymentName"`
+}
+
+type Cilium struct {
+	ReleaseName string `yaml:"release-name"`
+	ChartName   string `yaml:"chart-name"`
+	RepoPath    string `yaml:"repo-path"`
+	Version     string `yaml:"version"`
+	Namespace   string `yaml:"namespace"`
 }
 
 type Resources struct {
@@ -37,12 +51,16 @@ type Resources struct {
 type Config struct {
 	*Labels            `yaml:"labels"`
 	*Paths             `yaml:"paths"`
+	*AwsVpcCni         `yaml:"awsVpcCni"`
+	*ClusterAutoscaler `yaml:"clusterAutoscaler"`
+	*Cilium            `yaml:"cilium"`
 	PreflightResources *Resources `yaml:"preflightResources"`
 	WatchedResources   *Resources `yaml:"watchedResources"`
 	CleanUpResources   *Resources `yaml:"cleanUpResources"`
 
-	Client *kubernetes.Clientset
-	Log    *logrus.Entry
+	Client     *kubernetes.Clientset
+	HelmClient helmclient.Client
+	Log        *logrus.Entry
 }
 
 func New(configPath string, logLevel logrus.Level, kubeFactory cmdutil.Factory) (*Config, error) {
@@ -66,6 +84,18 @@ func New(configPath string, logLevel logrus.Level, kubeFactory cmdutil.Factory) 
 	logger := logrus.New()
 	logger.SetLevel(logLevel)
 	config.Log = logrus.NewEntry(logger)
+
+	hc, err := helmclient.New(&helmclient.Options{
+		RepositoryConfig: "/tmp/.helmrepo",
+		RepositoryCache:  "/tmp/.helmcache",
+		Debug:            false,
+		Linting:          false,
+		Namespace:        config.Cilium.Namespace,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build helm client: %s", err)
+	}
+	config.HelmClient = hc
 
 	return config, nil
 }

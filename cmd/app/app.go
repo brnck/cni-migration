@@ -3,6 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/brnck/cni-migration/pkg/deploy"
+	"github.com/brnck/cni-migration/pkg/disable"
+	"github.com/brnck/cni-migration/pkg/preflight"
+	"github.com/brnck/cni-migration/pkg/prepare"
+	"github.com/brnck/cni-migration/pkg/priority"
 	"os"
 
 	// Load all auth plugins
@@ -13,14 +18,8 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/jetstack/cni-migration/pkg"
-	"github.com/jetstack/cni-migration/pkg/cleanup"
-	"github.com/jetstack/cni-migration/pkg/config"
-	"github.com/jetstack/cni-migration/pkg/migrate"
-	"github.com/jetstack/cni-migration/pkg/preflight"
-	"github.com/jetstack/cni-migration/pkg/prepare"
-	"github.com/jetstack/cni-migration/pkg/priority"
-	"github.com/jetstack/cni-migration/pkg/roll"
+	"github.com/brnck/cni-migration/pkg"
+	"github.com/brnck/cni-migration/pkg/config"
 )
 
 type NewFunc func(context.Context, *config.Config) pkg.Step
@@ -32,32 +31,24 @@ type Options struct {
 	LogLevel   string
 	ConfigPath string
 
-	StepAll bool
-
 	//0
 	StepPreflight bool
 
 	// 1
-	StepPrepare bool
+	StepDisable bool
 
 	// 2
-	StepRollNodes    []string
-	StepRollAllNodes bool
+	StepPrepare bool
 
 	// 3
-	StepChangeCNIPriority    []string
-	StepChangeCNIAllPriority bool
+	StepPriority bool
 
 	// 4
-	StepMigrateNodes    []string
-	StepMigrateAllNodes bool
-
-	// 5
-	StepCleanUp bool
+	StepDeploy bool
 }
 
 const (
-	long = `  cni-migration is a CLI tool to migrate a Kubernetes cluster from using Calico
+	long = `  cni-migration is a CLI tool to migrate a Kubernetes cluster from using AWS VPC CNI
   to Cilium. By default, the CLI tool will run in debug mode, and not perform any
   steps. All previous steps must be successful in order to run further steps.`
 	examples = `
@@ -78,7 +69,7 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "cni-migration",
-		Short:   "cni-migration is a CLI tool to migrate a Kubernetes cluster from using Calico to Cilium.",
+		Short:   "cni-migration is a CLI tool to migrate a Kubernetes cluster from using AWS VPC CNI to Cilium.",
 		Long:    long,
 		Example: examples,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,18 +80,6 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 			lvl, err := logrus.ParseLevel(o.LogLevel)
 			if err != nil {
 				return fmt.Errorf("failed to parse --log-level: %s", err)
-			}
-
-			if len(o.StepRollNodes) > 0 {
-				ctx = context.WithValue(ctx, roll.ContextNodesKey, o.StepRollNodes)
-			}
-
-			if len(o.StepChangeCNIPriority) > 0 {
-				ctx = context.WithValue(ctx, priority.ContextNodesKey, o.StepChangeCNIPriority)
-			}
-
-			if len(o.StepMigrateNodes) > 0 {
-				ctx = context.WithValue(ctx, migrate.ContextNodesKey, o.StepMigrateNodes)
 			}
 
 			config, err := config.New(o.ConfigPath, lvl, factory)
@@ -154,38 +133,20 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 	var steps []pkg.Step
 	for _, f := range []NewFunc{
 		preflight.New,
+		disable.New,
 		prepare.New,
-		roll.New,
 		priority.New,
-		migrate.New,
-		cleanup.New,
+		deploy.New,
 	} {
 		steps = append(steps, f(ctx, config))
 	}
 
-	if o.StepAll {
-		for _, s := range steps {
-			if err := s.Run(dryrun); err != nil {
-				return err
-			}
-		}
-
-		config.Log.Info("steps successful.")
-
-		return nil
-	}
-
 	stepBool := []bool{
 		o.StepPreflight,
+		o.StepDisable,
 		o.StepPrepare,
-
-		(len(o.StepRollNodes) > 0 || o.StepRollAllNodes),
-
-		(len(o.StepChangeCNIPriority) > 0 || o.StepChangeCNIAllPriority),
-
-		(len(o.StepMigrateNodes) > 0 || o.StepMigrateAllNodes),
-
-		o.StepCleanUp,
+		o.StepPriority,
+		o.StepDeploy,
 	}
 
 	maxStep := -1

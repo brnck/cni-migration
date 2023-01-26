@@ -5,9 +5,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/jetstack/cni-migration/pkg"
-	"github.com/jetstack/cni-migration/pkg/config"
-	"github.com/jetstack/cni-migration/pkg/util"
+	"github.com/brnck/cni-migration/pkg"
+	"github.com/brnck/cni-migration/pkg/config"
+	"github.com/brnck/cni-migration/pkg/util"
 )
 
 var _ pkg.Step = &Preflight{}
@@ -54,7 +54,7 @@ func (p *Preflight) Ready() (bool, error) {
 
 // Run will ensure that
 // - Knet-stress is deployed
-// - Knet-stress is healty
+// - Knet-stress is healthy
 func (p *Preflight) Run(dryrun bool) error {
 	p.log.Infof("running preflight checks...")
 
