@@ -40,13 +40,11 @@ func New(ctx context.Context, config *config.Config) pkg.Step {
 // Ready ensures that
 // - Cilium is deployed to the cluster
 func (d *Deploy) Ready() (bool, error) {
-	d.log.Info("Checking if cilium helm release exists")
+	d.log.Info("checking if cilium helm release exists")
+
 	release, err := d.helmClient.GetRelease("cilium")
-	if err != nil {
+	if err != nil || release == nil {
 		return false, err
-	}
-	if release == nil {
-		return false, nil
 	}
 
 	d.log.Info("cilium deployment exists...")
