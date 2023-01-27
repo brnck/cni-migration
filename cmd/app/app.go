@@ -8,7 +8,9 @@ import (
 	"github.com/brnck/cni-migration/pkg/preflight"
 	"github.com/brnck/cni-migration/pkg/prepare"
 	"github.com/brnck/cni-migration/pkg/priority"
+	"github.com/brnck/cni-migration/pkg/remove"
 	"os"
+	"reflect"
 
 	// Load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -31,20 +33,30 @@ type Options struct {
 	LogLevel   string
 	ConfigPath string
 
-	//0
-	StepPreflight bool
+	StepAllPreMigration  bool
+	StepAllPostMigration bool
 
-	// 1
-	StepDisable bool
+	PreMigration struct {
+		//0
+		StepPreflight bool
 
-	// 2
-	StepPrepare bool
+		// 1
+		StepDisable bool
 
-	// 3
-	StepPriority bool
+		// 2
+		StepPrepare bool
 
-	// 4
-	StepDeploy bool
+		// 3
+		StepPriority bool
+
+		// 4
+		StepDeploy bool
+	}
+
+	PostMigration struct {
+		// 5
+		StepRemove bool
+	}
 }
 
 const (
@@ -61,6 +73,9 @@ const (
   # Perform a full live migration
   cni-migration --no-dry-run --step-all`
 )
+
+var preMigrationSteps []pkg.Step
+var postMigrationSteps []pkg.Step
 
 func NewRunCmd(ctx context.Context) *cobra.Command {
 	var factory cmdutil.Factory
@@ -87,7 +102,23 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to build config: %s", err)
 			}
 
-			if err := run(ctx, config, o); err != nil {
+			for _, f := range []NewFunc{
+				preflight.New,
+				disable.New,
+				prepare.New,
+				priority.New,
+				deploy.New,
+			} {
+				preMigrationSteps = append(preMigrationSteps, f(ctx, config))
+			}
+
+			for _, f := range []NewFunc{
+				remove.New,
+			} {
+				postMigrationSteps = append(postMigrationSteps, f(ctx, config))
+			}
+
+			if err := run(config, o); err != nil {
 				config.Log.Error(err)
 				os.Exit(1)
 			}
@@ -123,50 +154,73 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context, config *config.Config, o *Options) error {
+func run(config *config.Config, o *Options) error {
 	dryrun := !o.NoDryRun
 
 	if dryrun {
 		config.Log = config.Log.WithField("dry-run", "true")
 	}
 
-	var steps []pkg.Step
-	for _, f := range []NewFunc{
-		preflight.New,
-		disable.New,
-		prepare.New,
-		priority.New,
-		deploy.New,
-	} {
-		steps = append(steps, f(ctx, config))
+	if o.StepAllPreMigration {
+		return runAllSteps(preMigrationSteps, dryrun)
 	}
 
-	stepBool := []bool{
-		o.StepPreflight,
-		o.StepDisable,
-		o.StepPrepare,
-		o.StepPriority,
-		o.StepDeploy,
+	if o.StepAllPostMigration {
+		return runAllSteps(postMigrationSteps, dryrun)
 	}
 
+	v := reflect.ValueOf(o.PreMigration)
+	maxStep := resolveMaxStep(v)
+	if maxStep != -1 {
+		return runSteps(preMigrationSteps, maxStep, v, dryrun)
+	}
+
+	v = reflect.ValueOf(o.PostMigration)
+	maxStep = resolveMaxStep(v)
+	if resolveMaxStep(v) != -1 {
+		return runSteps(postMigrationSteps, maxStep, v, dryrun)
+	}
+
+	config.Log.Info("steps successful.")
+
+	return nil
+}
+
+func runAllSteps(steps []pkg.Step, dryrun bool) error {
+	for i := 0; i < len(steps); i++ {
+		if i > 0 {
+			if err := ensureStepReady(i-1, steps[i-1]); err != nil {
+				return err
+			}
+		}
+
+		if err := steps[i].Run(dryrun); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resolveMaxStep(flags reflect.Value) int {
 	maxStep := -1
-	for i, b := range stepBool {
-		if b {
+
+	for i := 0; i < flags.NumField(); i++ {
+		if flags.Field(i).Bool() {
 			maxStep = i
 		}
 	}
 
-	if maxStep == -1 {
-		config.Log.Info("no steps specified")
-		return nil
-	}
+	return maxStep
+}
 
-	for i, enabled := range stepBool {
+func runSteps(steps []pkg.Step, maxStep int, flags reflect.Value, dryrun bool) error {
+	for i := 0; i < flags.NumField(); i++ {
 		if i > maxStep {
 			break
 		}
 
-		if enabled {
+		if flags.Field(i).Bool() {
 
 			if i > 0 {
 				// Ensure previous step is read before proceeding
@@ -185,8 +239,6 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 			}
 		}
 	}
-
-	config.Log.Info("steps successful.")
 
 	return nil
 }

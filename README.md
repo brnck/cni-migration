@@ -35,13 +35,9 @@ bi-directional network connectivity across cluster.
 
 ### Post-migration
 
-TODO: TBA
+5. This step will remove `aws-node` daemon set from the cluster to ensure there are no two CNIs in the cluster
 
 The cluster should now be fully migrated from AWS VPC CNI to Cilium CNI.
-
-## Requirements
-
-The following requirements apply in order to run the migration.
 
 ## Configuration
 
