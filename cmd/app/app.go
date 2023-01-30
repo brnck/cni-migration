@@ -3,12 +3,16 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/brnck/cni-migration/pkg/delete"
 	"github.com/brnck/cni-migration/pkg/deploy"
 	"github.com/brnck/cni-migration/pkg/disable"
+	"github.com/brnck/cni-migration/pkg/enable"
+	"github.com/brnck/cni-migration/pkg/finalize"
 	"github.com/brnck/cni-migration/pkg/preflight"
 	"github.com/brnck/cni-migration/pkg/prepare"
 	"github.com/brnck/cni-migration/pkg/priority"
 	"github.com/brnck/cni-migration/pkg/remove"
+	"github.com/brnck/cni-migration/pkg/update"
 	"os"
 	"reflect"
 
@@ -55,7 +59,19 @@ type Options struct {
 
 	PostMigration struct {
 		// 5
+		StepDelete bool
+
+		// 6
 		StepRemove bool
+
+		// 7
+		StepUpdate bool
+
+		// 8
+		StepFinalize bool
+
+		// 9
+		StepEnable bool
 	}
 }
 
@@ -113,7 +129,11 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 			}
 
 			for _, f := range []NewFunc{
+				delete.New,
 				remove.New,
+				update.New,
+				finalize.New,
+				enable.New,
 			} {
 				postMigrationSteps = append(postMigrationSteps, f(ctx, config))
 			}

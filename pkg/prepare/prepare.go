@@ -77,7 +77,7 @@ func (p *Prepare) Run(dryrun bool) error {
 
 			delete(n.Labels, p.config.Labels.Cilium)
 
-			n.Labels[p.config.Labels.AwsVpcCniCilium] = p.config.Labels.Value
+			n.Labels[p.config.Labels.AwsVpcCni] = p.config.Labels.Value
 
 			_, err := p.client.CoreV1().Nodes().Update(p.ctx, n.DeepCopy(), metav1.UpdateOptions{})
 			if err != nil {
@@ -100,7 +100,7 @@ func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 		return false
 	}
 
-	_, cclOK := labels[p.config.Labels.AwsVpcCniCilium]
+	_, cclOK := labels[p.config.Labels.AwsVpcCni]
 	_, clOK := labels[p.config.Labels.Cilium]
 
 	// If both true, or both false, does not have correct labels

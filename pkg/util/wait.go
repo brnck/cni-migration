@@ -7,7 +7,7 @@ import (
 func (f *Factory) WaitAllReady(resources *config.Resources) error {
 	for namespace, names := range resources.Deployments {
 		for _, name := range names {
-			if err := f.waitDeploymentReady(namespace, name); err != nil {
+			if err := f.WaitDeploymentReady(namespace, name); err != nil {
 				return err
 			}
 		}
@@ -33,7 +33,7 @@ func (f *Factory) WaitAllReady(resources *config.Resources) error {
 }
 
 // WaitDeploymentReady namespace will wait for a all pods in a Deployment to become ready
-func (f *Factory) waitDeploymentReady(namespace, name string) error {
+func (f *Factory) WaitDeploymentReady(namespace, name string) error {
 	return f.waitReady("deployment", name, namespace)
 }
 

@@ -68,7 +68,7 @@ func (p *Priority) Run(dryrun bool) error {
 
 	if !patched {
 		p.log.Infof("patching aws-node DaemonSet with node selector %s=%s",
-			p.config.Labels.AwsVpcCniCilium, p.config.Labels.Value)
+			p.config.Labels.AwsVpcCni, p.config.Labels.Value)
 
 		if !dryrun {
 			if err := p.patchAwsVPC(); err != nil {
@@ -101,7 +101,7 @@ func (p *Priority) patchAwsVPC() error {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		ds.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium] = p.config.Labels.Value
+	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCni] = p.config.Labels.Value
 
 	_, err = p.client.AppsV1().DaemonSets(p.config.AwsVpcCni.Namespace).Update(p.ctx, ds, metav1.UpdateOptions{})
 	if err != nil {
@@ -123,7 +123,7 @@ func (p *Priority) awsVpcCNIisPatched() (bool, error) {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		return false, nil
 	}
-	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCniCilium]; !ok || v != p.config.Labels.Value {
+	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.AwsVpcCni]; !ok || v != p.config.Labels.Value {
 		return false, nil
 	}
 

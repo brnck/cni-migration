@@ -1,8 +1,7 @@
-package deploy
+package update
 
 import (
 	"context"
-	"fmt"
 	"github.com/brnck/cni-migration/pkg"
 	"github.com/brnck/cni-migration/pkg/config"
 	"github.com/brnck/cni-migration/pkg/util"
@@ -14,9 +13,9 @@ import (
 	"time"
 )
 
-var _ pkg.Step = &Deploy{}
+var _ pkg.Step = &Update{}
 
-type Deploy struct {
+type Update struct {
 	ctx        context.Context
 	config     *config.Config
 	client     *kubernetes.Clientset
@@ -27,8 +26,8 @@ type Deploy struct {
 }
 
 func New(ctx context.Context, config *config.Config) pkg.Step {
-	log := config.Log.WithField("step", "4-deploy")
-	return &Deploy{
+	log := config.Log.WithField("step", "7-deploy")
+	return &Update{
 		ctx:        ctx,
 		log:        log,
 		config:     config,
@@ -40,58 +39,56 @@ func New(ctx context.Context, config *config.Config) pkg.Step {
 
 // Ready ensures that
 // - Cilium is deployed to the cluster
-func (d *Deploy) Ready() (bool, error) {
-	d.log.Info("checking if cilium helm release exists")
+func (u *Update) Ready() (bool, error) {
+	u.log.Info("checking if cilium helm release exists")
 
-	release, err := d.helmClient.GetRelease("cilium")
+	release, err := u.helmClient.GetRelease("cilium")
 	if err != nil || release == nil {
 		return false, err
 	}
+	if release.Info.Status.IsPending() {
+		return false, nil
+	}
 
-	d.log.Info("cilium deployment exists...")
+	u.log.Info("cilium deployment exists...")
 
 	return true, nil
 }
 
 // Run will ensure that
 // - Cilium is deployed to the cluster
-func (d *Deploy) Run(dryrun bool) error {
-	if exists, _ := d.helmClient.GetRelease(d.config.Cilium.ReleaseName); exists != nil {
-		d.log.Info("cilium already deployed. Skipping...")
-		return nil
-	}
+func (u *Update) Run(dryrun bool) error {
+	u.log.Info("updating cilium helm release")
 
-	d.log.Info("deploying cilium helm release")
-
-	if err := d.helmClient.AddOrUpdateChartRepo(repo.Entry{
+	if err := u.helmClient.AddOrUpdateChartRepo(repo.Entry{
 		Name: "cilium",
-		URL:  d.config.Cilium.RepoPath,
+		URL:  u.config.Cilium.RepoPath,
 	}); err != nil {
 		return err
 	}
 
-	values, err := os.ReadFile(d.config.CiliumPreMigration)
+	values, err := os.ReadFile(u.config.CiliumPostMigration)
 	if err != nil {
 		return err
 	}
 
 	spec := &helmclient.ChartSpec{
-		ReleaseName: d.config.Cilium.ReleaseName,
-		ChartName:   d.config.Cilium.ChartName,
-		Namespace:   d.config.Cilium.Namespace,
+		ReleaseName: u.config.Cilium.ReleaseName,
+		ChartName:   u.config.Cilium.ChartName,
+		Namespace:   u.config.Cilium.Namespace,
 		ValuesYaml:  string(values),
-		Version:     d.config.Cilium.Version,
+		Version:     u.config.Cilium.Version,
 		Timeout:     30 * time.Minute,
 		DryRun:      dryrun,
 	}
-	if _, err = d.helmClient.InstallOrUpgradeChart(d.ctx, spec, nil); err != nil {
+	if _, err = u.helmClient.UpgradeChart(u.ctx, spec, nil); err != nil {
 		return err
 	}
 
 	backOff := 5
 
 	for backOff != 0 {
-		release, err := d.helmClient.GetRelease(spec.ReleaseName)
+		release, err := u.helmClient.GetRelease(spec.ReleaseName)
 		if err != nil {
 			return err
 		}
@@ -104,17 +101,17 @@ func (d *Deploy) Run(dryrun bool) error {
 		time.Sleep(1 * time.Second)
 	}
 
-	if err = d.factory.WaitDeploymentReady(
-		d.config.Cilium.Namespace,
-		fmt.Sprintf("%s-operator", d.config.Cilium.ReleaseName)); err != nil {
+	u.log.Infof("waiting until %s will become ready", u.config.Cilium.ReleaseName)
+	if err = u.factory.WaitDaemonSetReady(u.config.Cilium.Namespace, u.config.Cilium.ReleaseName); err != nil {
 		return err
 	}
+	u.log.Infof("%s is ready", u.config.Cilium.ReleaseName)
 
-	if err = d.factory.CheckKnetStress(); err != nil {
+	if err = u.factory.CheckKnetStress(); err != nil {
 		return nil
 	}
 
-	d.log.Infof("%s deployed to %s namespace", d.config.Cilium.ReleaseName, d.config.Cilium.Namespace)
+	u.log.Infof("upgraded %s in %s namespace", u.config.Cilium.ReleaseName, u.config.Cilium.Namespace)
 
 	return nil
 }

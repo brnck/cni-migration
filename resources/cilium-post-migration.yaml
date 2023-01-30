@@ -1,0 +1,47 @@
+debug:
+  enabled: false
+
+hubble:
+  enabled: true
+
+  relay:
+    enabled: true
+
+  ui:
+    enabled: true
+
+l7Proxy: false
+
+operator:
+  unmanagedPodWatcher:
+    # -- Restart any pod that are not managed by Cilium.
+    restart: true
+    # -- Interval, in seconds, to check if there are any pods that are not
+    # managed by Cilium.
+    intervalSeconds: 15
+
+cni:
+  install: true
+  chainingMode: none
+
+  # -- Make Cilium take ownership over the `/etc/cni/net.d` directory on the
+  # node, renaming all non-Cilium CNI configurations to `*.cilium_bak`.
+  # This ensures no Pods can be scheduled using other CNI plugins during Cilium
+  # agent downtime.
+  exclusive: false
+
+encryption:
+  enabled: false
+
+### For EKS
+ipam:
+  mode: eni
+egressMasqueradeInterfaces: eth*
+eni:
+  enabled: true
+
+##
+# For EKS tunnel must be disabled
+#
+##
+tunnel: "disabled"

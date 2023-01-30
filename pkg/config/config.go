@@ -12,8 +12,8 @@ import (
 )
 
 type Labels struct {
-	AwsVpcCniCilium string `yaml:"aws-vpc-cni"`
-	Cilium          string `yaml:"cilium"`
+	AwsVpcCni string `yaml:"aws-vpc-cni"`
+	Cilium    string `yaml:"cilium"`
 
 	Value string `yaml:"value"`
 }
@@ -32,6 +32,7 @@ type AwsVpcCni struct {
 type ClusterAutoscaler struct {
 	Namespace      string `yaml:"namespace"`
 	DeploymentName string `yaml:"deploymentName"`
+	Replicas       int    `yaml:"replicas"`
 }
 
 type Cilium struct {

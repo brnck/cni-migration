@@ -17,6 +17,7 @@ awsVpcCni:
 clusterAutoscaler:
   namespace: kube-system
   deploymentName: cluster-autoscaler
+  replicas: 1
 
 cilium:
   release-name: cilium
@@ -38,8 +39,6 @@ preflightResources:
 # stage. Must be installed and ready at prepare.
 watchedResources:
   daemonsets:
-    kube-system:
-    - aws-node
     knet-stress:
     - knet-stress
     - knet-stress-2
