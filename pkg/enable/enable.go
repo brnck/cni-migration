@@ -33,7 +33,7 @@ func New(ctx context.Context, config *config.Config) pkg.Step {
 }
 
 // Ready ensures that
-// - Cluster autoscaler is descaled to 0
+// - Cluster autoscaler is upscaled
 func (e *Enable) Ready() (bool, error) {
 	// Get scale by name
 	e.log.Info("checking if autoscaler is upscaled")
@@ -59,7 +59,7 @@ func (e *Enable) Ready() (bool, error) {
 }
 
 // Run will ensure that
-// - Cluster autoscaler is descaled to 0
+// - Cluster autoscaler is upscaled
 func (e *Enable) Run(dryrun bool) error {
 	e.log.Infof("enabling cluster autoscaler")
 
