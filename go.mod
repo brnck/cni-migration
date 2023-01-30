@@ -16,5 +16,5 @@ require (
 	k8s.io/client-go v0.26.1
 	k8s.io/component-base v0.26.1
 	k8s.io/klog v1.0.0
-	k8s.io/kubectl v0.26.0
+	k8s.io/kubectl v0.26.1
 )
