@@ -26,7 +26,11 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVarP(&o.PreMigration.StepPriority, "step-priority", "3", false, "[3] - [pre-migration] Set node selector on AWS VPC CNI daemon set.")
 	fs.BoolVarP(&o.PreMigration.StepDeploy, "step-deploy", "4", false, "[4] - [pre-migration] Deploy Cilium helm chart to the cluster")
 
-	fs.BoolVarP(&o.PostMigration.StepRemove, "step-remove", "5", false, "[5] - [post-migration] Remove AWS VPC CNI daemon set from the cluster")
+	fs.BoolVarP(&o.PostMigration.StepDelete, "step-delete", "5", false, "[5] - [post-migration] Remove AWS VPC CNI daemon set from the cluster")
+	fs.BoolVarP(&o.PostMigration.StepRemove, "step-remove", "6", false, "[6] - [post-migration] Remove AWS VPC CNI node role label from the nodes")
+	fs.BoolVarP(&o.PostMigration.StepUpdate, "step-update", "7", false, "[7] - [post-migration] Upgrade Cilium by removing node selector")
+	fs.BoolVarP(&o.PostMigration.StepUpdate, "step-finalize", "8", false, "[8] - [post-migration] Remove Cilium node role label from the nodes")
+	fs.BoolVarP(&o.PostMigration.StepEnable, "step-enable", "9", false, "[9] - [post-migration] Upscale cluster autoscaler back to configured replicas")
 
 	fs.StringVarP(&o.LogLevel, "log-level", "v", "debug", "Set logging level [debug|info|warn|error|fatal]")
 	fs.StringVarP(&o.ConfigPath, "config", "c", "config.yaml", "File path to the config path.")

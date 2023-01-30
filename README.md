@@ -24,7 +24,7 @@ bi-directional network connectivity across cluster.
 0. This step deploys knet-stress and ensure each pod of can "talk" to each other
 1. This step disables cluster autoscaler by descaling deployment to 0. This will ensure no new nodes
    are being created until the migration is finished.
-2. This step label all nodes with `node-role.kubernetes/aws-vpc=true`.
+2. This step will label all nodes with `node-role.kubernetes/aws-vpc=true`.
 3. This step will add node selector to AWS VPC CNI daemon set to ensure pods will be scheduled only
    in nodes that contain label `node-role.kubernetes/aws-vpc=true`.
 4. This step will deploy `Cilium` to the cluster. The daemonset of Cilium already has node-selector set
@@ -36,6 +36,11 @@ bi-directional network connectivity across cluster.
 ### Post-migration
 
 5. This step will remove `aws-node` daemon set from the cluster to ensure there are no two CNIs in the cluster
+6. This step will remove label `node-role.kubernetes/aws-vpc=true` from the nodes
+7. This step will update Cilium by removing node selector `node-role.kubernetes/cilium=true`
+8. This step will remove label `node-role.kubernetes/cilium=true` from the nodes
+9. This step will re-enable cluster autoscaler by setting replicas number that is set in 
+   config.yaml under the `clusterAutoscaler.replicas` key 
 
 The cluster should now be fully migrated from AWS VPC CNI to Cilium CNI.
 
